@@ -1,0 +1,17 @@
+name: Use Check MkDocs Build
+
+on:
+  pull_request_target:
+    branches:
+      - master
+
+jobs:
+  call-central-check:
+    uses: Telucero/workflows/.github/workflows/check-mkdocs-build.yml@Central_repo_test
+    with:
+      mkdocs_repo: papermoonio/polkadot-mkdocs
+      docs_dir: polkadot-docs
+      branch: main
+      deploy: false
+    secrets:
+      REPO_SCOPED_TOKEN: ${{ secrets.REPO_SCOPED_TOKEN }}
