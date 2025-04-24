@@ -22,7 +22,7 @@ jobs:
       - name: Clone Polkadot MKDocs
         run: |
           # clone mkdocs repo locally
-          git clone https://${{ secrets.REPO_SCOPED_TOKEN }}@github.com/papermoonio/polkadot-mkdocs
+          git clone https://${{ secrets.REPO_SCOPED_TOKEN }}@github.com/papermoonio/polkadot-mkdocs 
 
       - name: Move polkadot-docs contents to mkdocs repository
         run: |

@@ -9,9 +9,12 @@ jobs:
   call-central-check:
     uses: Telucero/workflows/.github/workflows/check-mkdocs-build.yml@Central_repo_test
     with:
-      mkdocs_repo: Telucero/polkadot-mkdocs
-      docs_dir: polkadot-docs
       branch: main
-      deploy: false
+      repository: Telucero/polkadot-mkdocs            # This should match your docs repo
+      path: polkadot-docs                             # Directory where mkdocs.yml lives
+      url_prefix: polkadot-docs                       # Used for rewriting URLs
+      deploy: false                                   # Don't deploy on PRs
+      rewrite_image_paths: true                       # Optional, only if needed
+
     secrets:
       REPO_SCOPED_TOKEN: ${{ secrets.REPO_SCOPED_TOKEN }}
