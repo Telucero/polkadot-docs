@@ -9,7 +9,7 @@ jobs:
   call-central-check:
     uses: Telucero/workflows/.github/workflows/check-mkdocs-build.yml@Central_repo_test
     with:
-      mkdocs_repo: papermoonio/polkadot-mkdocs
+      mkdocs_repo: Telucero/polkadot-mkdocs
       docs_dir: polkadot-docs
       branch: main
       deploy: false
