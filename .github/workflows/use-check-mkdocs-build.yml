@@ -1,20 +1,14 @@
-name: Use Check MkDocs Build
+name: Trigger MkDocs Build
 
 on:
   pull_request_target:
-    branches:
-      - main
+    branches: [main]
 
 jobs:
-  call-central-check:
+  call-build-docs:
     uses: Telucero/workflows/.github/workflows/check-mkdocs-build.yml@Central_repo_test
     with:
-      branch: main
-      repository: Telucero/polkadot-mkdocs            # This should match your docs repo
-      path: polkadot-docs                             # Directory where mkdocs.yml lives
-      url_prefix: polkadot-docs                       # Used for rewriting URLs
-      deploy: false                                   # Don't deploy on PRs
-      rewrite_image_paths: true                       # Optional, only if needed
-
+      repo_name: polkadot-docs
+      mkdocs_repo: Telucero/polkadot-mkdocs
     secrets:
       REPO_SCOPED_TOKEN: ${{ secrets.REPO_SCOPED_TOKEN }}
