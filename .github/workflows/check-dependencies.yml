@@ -8,4 +8,7 @@ on:
 jobs:
   check-dependencies:
     uses: Telucero/workflows/.github/workflows/check-dependencies.yml@main
+    permissions:
+      contents: read
+      issues: write  # Required for creating GitHub issues
    
