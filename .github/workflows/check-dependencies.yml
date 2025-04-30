@@ -8,5 +8,4 @@ on:
 jobs:
   check-dependencies:
     uses: Telucero/workflows/.github/workflows/check-dependencies.yml@main
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+   
