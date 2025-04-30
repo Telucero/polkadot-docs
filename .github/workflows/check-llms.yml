@@ -11,4 +11,5 @@ jobs:
     with:
         llms_filename: llms-full.txt
         repo_dir: polkadot-docs
+        llms_script_dir: scripts/llms-scripts
 
