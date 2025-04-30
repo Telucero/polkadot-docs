@@ -11,4 +11,3 @@ jobs:
     permissions:
       contents: read
       issues: write  # Required for creating GitHub issues
-   
