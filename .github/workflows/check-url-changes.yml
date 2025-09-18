@@ -6,7 +6,7 @@ on:
       - url-test
     paths:
       - '**/*.md'
-      - '.nav.yml'
+      - '**/.nav.yml'
 
 
 jobs:
