@@ -6,7 +6,6 @@ on:
       - master
     paths:
       - '**/*.md'
-      - '**/*.nav.yml'
 
 
 jobs:
