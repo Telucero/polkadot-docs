@@ -3,12 +3,7 @@ name: Documentation & Navigation Change Checker
 on:
   pull_request_target:
     branches:
-      - url-test  # target branch
-    # paths can stay as a hint, but we will rely on Git runtime check
-    paths:
-      - '**/*.md'
-      - '**/*.nav.yml'
-      - '**/*.nav.yaml'
+      - url-test   # target branch
 
 jobs:
   check-doc-nav-changes:
