@@ -1,14 +1,19 @@
 name: Documentation & Navigation Change Checker
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
-      - url-test
+      - url-test   # target branch
+    paths:
+      - '**/*.md'
+      - '**/*.nav.yml'
+      - '**/*.nav.yaml'
 
 jobs:
   check-doc-nav-changes:
     runs-on: ubuntu-latest
     steps:
+      # 1️⃣ Checkout PR branch (fork-safe)
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
@@ -16,28 +21,42 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
 
+      # 2️⃣ Fetch the base branch for diffs
       - name: Fetch base branch
-        run: git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
-
-      - name: Identify .md and .nav changes
         run: |
-          BASE=origin/${{ github.event.pull_request.base.ref }}
-          HEAD=${{ github.event.pull_request.head.sha }}
+          git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
 
-          # Markdown changes
-          DELETED_MD=$(git diff --name-status $BASE $HEAD | grep '^D.*\.md$' | cut -f2- || true)
-          RENAMED_MD=$(git diff --name-status $BASE $HEAD | grep '^R.*\.md$' | awk '{print $2 " -> " $3}' || true)
+      # 3️⃣ Detect deleted, renamed, and modified files
+      - name: Identify documentation and nav changes
+        run: |
+          BASE_BRANCH=origin/${{ github.event.pull_request.base.ref }}
+          HEAD_SHA=${{ github.event.pull_request.head.sha }}
 
-          # Nav changes
-          DELETED_NAV=$(git diff --name-status $BASE $HEAD | grep '^D.*\.nav\.ya?ml$' | cut -f2- || true)
-          MODIFIED_NAV=$(git diff --name-status $BASE $HEAD | grep -E '^[AM].*\.nav\.ya?ml$' | cut -f2- || true)
-          RENAMED_NAV=$(git diff --name-status $BASE $HEAD | grep '^R.*\.nav\.ya?ml$' | awk '{print $2 " -> " $3}' || true)
+          # Deleted Markdown files
+          DELETED_MD=$(git diff --name-status $BASE_BRANCH $HEAD_SHA | grep '^D.*\.md$' | cut -f2- || true)
 
+          # Renamed Markdown files
+          RENAMED_MD=$(git diff --name-status $BASE_BRANCH $HEAD_SHA | grep '^R.*\.md$' | awk '{print $2 " -> " $3}' || true)
+
+          # Nav files
+          DELETED_NAV=$(git diff --name-status $BASE_BRANCH $HEAD_SHA | grep '^D.*\.nav\.ya?ml$' | cut -f2- || true)
+          MODIFIED_NAV=$(git diff --name-status $BASE_BRANCH $HEAD_SHA | grep -E '^[AM].*\.nav\.ya?ml$' | cut -f2- || true)
+          RENAMED_NAV=$(git diff --name-status $BASE_BRANCH $HEAD_SHA | grep '^R.*\.nav\.ya?ml$' | awk '{print $2 " -> " $3}' || true)
+
+          # Build NAV_CHANGES with diffs
           NAV_CHANGES=""
-          for f in $DELETED_NAV; do NAV_CHANGES+="$f: [DELETED]\n\n"; done
-          for f in $MODIFIED_NAV; do DIFF=$(git diff $BASE $HEAD -- "$f" | grep -vE '^\+\+\+|^---'); NAV_CHANGES+="$f:\n$DIFF\n\n"; done
-          for f in $RENAMED_NAV; do NAV_CHANGES+="$f [RENAMED]\n\n"; done
+          for FILE in $DELETED_NAV; do
+            NAV_CHANGES+="$FILE: [FILE DELETED]\n\n"
+          done
+          for FILE in $MODIFIED_NAV; do
+            DIFF=$(git diff $BASE_BRANCH $HEAD_SHA -- "$FILE" | grep -vE '^\+\+\+|^---' || true)
+            NAV_CHANGES+="$FILE:\n$DIFF\n\n"
+          done
+          for FILE in $RENAMED_NAV; do
+            NAV_CHANGES+="$FILE [RENAMED]\n\n"
+          done
 
+          # Export to environment
           echo "DELETED_MD<<EOF" >> $GITHUB_ENV
           echo "$DELETED_MD" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -50,33 +69,43 @@ jobs:
           echo -e "$NAV_CHANGES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-          if [ -n "$DELETED_MD$RENAMED_MD$NAV_CHANGES" ]; then
+          # Set warning flag
+          if [ -n "$DELETED_MD" ] || [ -n "$RENAMED_MD" ] || [ -n "$NAV_CHANGES" ]; then
             echo "warning=true" >> $GITHUB_ENV
           else
             echo "warning=false" >> $GITHUB_ENV
           fi
 
-      - name: Post PR comment if relevant
+      # 4️⃣ Post PR comment if changes exist
+      - name: Post PR comment
         if: env.warning == 'true'
         uses: actions/github-script@v7
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
+            const issue_number = context.payload.pull_request.number;
+            const repo = context.repo;
             const deletedMd = `${process.env.DELETED_MD}`.trim();
             const renamedMd = `${process.env.RENAMED_MD}`.trim();
             const navChanges = `${process.env.NAV_CHANGES}`.trim();
 
-            let message = "🔍 **Documentation & Navigation Checker**\n\nThis PR modifies `.md` or `.nav.yml/.nav.yaml` files.\n\n";
+            let message = `🔍 **Documentation & Navigation Checker**\n\nThis PR modifies documentation (.md) or navigation files (.nav.yml/.nav.yaml), which could affect links and Table of Contents.\n\n`;
 
-            if (deletedMd) message += `**Deleted Markdown files:**\n\`\`\`\n${deletedMd}\n\`\`\`\n\n`;
-            if (renamedMd) message += `**Renamed Markdown files:**\n\`\`\`\n${renamedMd}\n\`\`\`\n\n`;
-            if (navChanges) message += `**Navigation file changes:**\n\`\`\`\n${navChanges}\n\`\`\`\n\n`;
+            if (deletedMd) {
+              message += `**Deleted Markdown files:**\n\`\`\`\n${deletedMd}\n\`\`\`\n\n`;
+            }
+            if (renamedMd) {
+              message += `**Renamed Markdown files:**\n\`\`\`\n${renamedMd}\n\`\`\`\n\n`;
+            }
+            if (navChanges) {
+              message += `**Navigation file changes:**\n\`\`\`\n${navChanges}\n\`\`\`\n\n`;
+            }
 
-            message += "🚨 Please verify:\n- Links are correct\n- TOC matches expected structure\n- Deleted/renamed entries are handled";
+            message += `🚨 Please verify:\n- Internal links are correct\n- Navigation structure is still valid\n- Any deleted or renamed entries are handled properly`;
 
             github.rest.issues.createComment({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.payload.pull_request.number,
+              owner: repo.owner,
+              repo: repo.repo,
+              issue_number: issue_number,
               body: message
             });
