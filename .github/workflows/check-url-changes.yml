@@ -3,10 +3,9 @@ name: Navigation File Change Checker
 on:
   pull_request_target:
     branches:
-      - master  # target branch
+      - url-test  # target branch
     paths:
       - '**/.nav.yml'
-      - '**/.nav.yaml'
 
 jobs:
   check-nav-changes:
