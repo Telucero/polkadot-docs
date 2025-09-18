@@ -1,7 +1,7 @@
 name: Documentation & Navigation Change Checker
 
 on:
-  pull_request:
+  pull_request_target:
     branches:
       - url-test
 
@@ -9,6 +9,7 @@ jobs:
   check-doc-nav-changes:
     runs-on: ubuntu-latest
     steps:
+      # 1️⃣ Checkout PR branch safely (fork-safe)
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
@@ -16,9 +17,11 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
 
+      # 2️⃣ Fetch base branch for diffs
       - name: Fetch base branch
         run: git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
 
+      # 3️⃣ Detect deleted, renamed, and modified files
       - name: Identify .md and .nav changes
         run: |
           BASE=origin/${{ github.event.pull_request.base.ref }}
@@ -38,6 +41,7 @@ jobs:
           for f in $MODIFIED_NAV; do DIFF=$(git diff $BASE $HEAD -- "$f" | grep -vE '^\+\+\+|^---'); NAV_CHANGES+="$f:\n$DIFF\n\n"; done
           for f in $RENAMED_NAV; do NAV_CHANGES+="$f [RENAMED]\n\n"; done
 
+          # Export to environment
           echo "DELETED_MD<<EOF" >> $GITHUB_ENV
           echo "$DELETED_MD" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -50,13 +54,15 @@ jobs:
           echo -e "$NAV_CHANGES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
+          # Set warning flag
           if [ -n "$DELETED_MD$RENAMED_MD$NAV_CHANGES" ]; then
             echo "warning=true" >> $GITHUB_ENV
           else
             echo "warning=false" >> $GITHUB_ENV
           fi
 
-      - name: Post PR comment if relevant
+      # 4️⃣ Post PR comment if relevant
+      - name: Post PR comment
         if: env.warning == 'true'
         uses: actions/github-script@v7
         with:
@@ -66,13 +72,15 @@ jobs:
             const renamedMd = `${process.env.RENAMED_MD}`.trim();
             const navChanges = `${process.env.NAV_CHANGES}`.trim();
 
-            let message = "🔍 **Documentation & Navigation Checker**\n\nThis PR modifies `.md` or `.nav.yml/.nav.yaml` files.\n\n";
+            // Your requested start message
+            let message = `🔍 **Documentation URL Checker**\n\nThis PR modifies documentation files in ways that could potentially create broken links.\n\n`;
 
             if (deletedMd) message += `**Deleted Markdown files:**\n\`\`\`\n${deletedMd}\n\`\`\`\n\n`;
             if (renamedMd) message += `**Renamed Markdown files:**\n\`\`\`\n${renamedMd}\n\`\`\`\n\n`;
             if (navChanges) message += `**Navigation file changes:**\n\`\`\`\n${navChanges}\n\`\`\`\n\n`;
 
-            message += "🚨 Please verify:\n- Links are correct\n- TOC matches expected structure\n- Deleted/renamed entries are handled";
+            // Your requested end message
+            message += `🚨 Please review these changes carefully 🚨\n\n If not handled properly, broken links (404 errors) could appear. To maintain a smooth user experience, consider:\n- Adding redirects in the \`mkdocs.yml\` file from the old URLs to the new ones\n- Updating internal references to these files`;
 
             github.rest.issues.createComment({
               owner: context.repo.owner,
