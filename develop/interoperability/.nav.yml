@@ -6,6 +6,6 @@ nav:
   - 'XCM Runtime Configuration': xcm-config.md
   - 'Send Messages': send-messages.md
   - 'XCM Runtime APIs': xcm-runtime-apis.md
-  - 'Test and Debug': test-and-debug.md
-  - xcm-guide
+  - 'Test and Debug': 
+  - xcm-guides
   - versions
