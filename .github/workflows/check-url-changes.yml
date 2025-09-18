@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - '**/*.md'
+      - '.nav.yml'
 
 
 jobs:
@@ -31,8 +32,8 @@ jobs:
           echo "$RENAMED_FILES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-          # Nav file changes (.nav.yml only)
-          NAV_FILES=$(git diff --name-only origin/master ${{ github.event.pull_request.head.sha }} | grep '\.nav\.yml$' || true)
+          # Nav file changes (.nav.yml and .nav.yaml)
+          NAV_FILES=$(git diff --name-only origin/master ${{ github.event.pull_request.head.sha }} | grep -E '\.nav\.ya?ml$' || true)
 
           NAV_CHANGES=""
           for FILE in $NAV_FILES; do
