@@ -1,77 +1,64 @@
-name: Check Documentation URL Changes
+name: Navigation File Change Checker
 
 on:
   pull_request_target:
     branches:
-      - master       # target branch of PR
+      - master  # target branch
     paths:
-      - '**/*.md'
       - '**/.nav.yml'
       - '**/.nav.yaml'
 
 jobs:
-  check-url-changes:
+  check-nav-changes:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
+      # 1️⃣ Checkout the PR branch safely (fork-safe)
+      - name: Checkout PR
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
 
-      - name: Identify deleted, renamed, and nav changes
+      # 2️⃣ Identify nav file changes
+      - name: Detect nav file changes
         run: |
-          # Deleted markdown files
-          DELETED_FILES=$(git diff --name-status origin/master ${{ github.event.pull_request.head.sha }} | grep '^D.*\.md$' | cut -f2- || true)
-          echo "DELETED_FILES<<EOF" >> $GITHUB_ENV
-          echo "$DELETED_FILES" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          # Deleted nav files
+          DELETED_NAV=$(git diff --name-status origin/master ${{ github.event.pull_request.head.sha }} | grep '^D.*\.nav\.ya?ml$' | cut -f2- || true)
 
-          # Renamed markdown files
-          RENAMED_FILES=$(git diff --name-status origin/master ${{ github.event.pull_request.head.sha }} | grep '^R.*\.md$' | awk '{print $2 " -> " $3}' || true)
-          echo "RENAMED_FILES<<EOF" >> $GITHUB_ENV
-          echo "$RENAMED_FILES" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-          # Deleted nav files (.nav.yml or .nav.yaml)
-          DELETED_NAV_FILES=$(git diff --name-status origin/master ${{ github.event.pull_request.head.sha }} | grep '^D.*\.nav\.ya?ml$' | cut -f2- || true)
-
-          # Modified nav files
-          MODIFIED_NAV_FILES=$(git diff --name-only origin/master ${{ github.event.pull_request.head.sha }} | grep -E '\.nav\.ya?ml$' || true)
+          # Added or modified nav files
+          MODIFIED_NAV=$(git diff --name-status origin/master ${{ github.event.pull_request.head.sha }} | grep -E '^[AM].*\.nav\.ya?ml$' | cut -f2- || true)
 
           NAV_CHANGES=""
 
-          # Combine deleted and modified nav files
-          for FILE in $DELETED_NAV_FILES $MODIFIED_NAV_FILES; do
-            if [ -f "$FILE" ]; then
-              DIFF=$(git diff origin/master ${{ github.event.pull_request.head.sha }} -- "$FILE" | grep -vE '^\+\+\+|^---' || true)
-            else
-              DIFF="[FILE DELETED]"
-            fi
+          # Process deleted files
+          for FILE in $DELETED_NAV; do
+            NAV_CHANGES+="$FILE: [FILE DELETED]\n\n"
+          done
+
+          # Process added or modified files
+          for FILE in $MODIFIED_NAV; do
+            DIFF=$(git diff origin/master ${{ github.event.pull_request.head.sha }} -- "$FILE" | grep -vE '^\+\+\+|^---' || true)
             NAV_CHANGES+="$FILE:\n$DIFF\n\n"
           done
 
+          # Export to environment
           echo "NAV_CHANGES<<EOF" >> $GITHUB_ENV
           echo -e "$NAV_CHANGES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-          # Set warning flag if any risky changes found
-          if [ -n "$DELETED_FILES" ] || [ -n "$RENAMED_FILES" ] || [ -n "$NAV_CHANGES" ]; then
+          # Set warning flag
+          if [ -n "$NAV_CHANGES" ]; then
             echo "warning=true" >> $GITHUB_ENV
           else
             echo "warning=false" >> $GITHUB_ENV
           fi
 
-          # Log for debugging
-          echo "Deleted markdown files:"
-          echo "$DELETED_FILES"
-          echo -e "\nRenamed/Moved markdown files:"
-          echo "$RENAMED_FILES"
-          echo -e "\nNav file changes (deleted/modified):"
-          echo -e "$NAV_CHANGES"
+          # Debug output
+          echo -e "NAV file changes detected:\n$NAV_CHANGES"
 
-      - name: Post PR warning
+      # 3️⃣ Post PR comment if changes exist
+      - name: Post PR comment
         if: env.warning == 'true'
         uses: actions/github-script@v7
         with:
@@ -79,33 +66,14 @@ jobs:
           script: |
             const issue_number = context.payload.pull_request.number;
             const repo = context.repo;
-            const deletedFiles = `${process.env.DELETED_FILES}`.trim();
-            const renamedFiles = `${process.env.RENAMED_FILES}`.trim();
             const navChanges = `${process.env.NAV_CHANGES}`.trim();
 
-            let message = `🔍 **Documentation URL Checker**\n\nThis PR modifies documentation files in ways that could potentially create broken links.\n\n`;
+            let formatted = navChanges.split('\n').map(line => {
+              if (line.includes('[FILE DELETED]')) return `❌ ${line.replace(': [FILE DELETED]', '')}`;
+              return line;
+            }).join('\n');
 
-            if (deletedFiles) {
-              message += `**Deleted markdown files:**\n\`\`\`\n${deletedFiles}\n\`\`\`\n\n`;
-            }
-
-            if (renamedFiles) {
-              message += `**Renamed/Moved markdown files:**\n\`\`\`\n${renamedFiles}\n\`\`\`\n\n`;
-            }
-
-            if (navChanges) {
-              // Highlight deleted nav files separately
-              const navLines = navChanges.split('\n').map(line => {
-                if (line.includes('[FILE DELETED]')) {
-                  return `❌ ${line.replace(':', '')}`; // mark deleted files with ❌
-                }
-                return line;
-              }).join('\n');
-
-              message += `**Modified or deleted navigation files:**\n\`\`\`\n${navLines}\n\`\`\`\n\n`;
-            }
-
-            message += `🚨 Please review these changes carefully 🚨\n\nIf not handled properly, broken links (404 errors) could appear. To maintain a smooth user experience, consider:\n- Adding redirects in the \`mkdocs.yml\` file from the old URLs to the new ones\n- Updating internal references to these files\n- Verifying that the navigation structure still matches the intended URLs.`;
+            const message = `🔍 **Navigation File Changes Detected**\n\nThis PR modifies navigation files (.nav.yml/.nav.yaml) which could affect the Table of Contents.\n\n**Changes:**\n\`\`\`\n${formatted}\n\`\`\`\n\n🚨 Please verify:\n- Navigation structure still matches intended URLs\n- Internal links are correct\n- Any deleted entries are handled or redirected`;
 
             github.rest.issues.createComment({
               owner: repo.owner,
