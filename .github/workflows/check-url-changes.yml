@@ -1,15 +1,15 @@
 name: Documentation & Navigation Change Checker
 
 on:
-  pull_request_target:
+  pull_request:
     branches:
-      - url-test   # target branch
+      - url-test
 
 jobs:
   check-doc-nav-changes:
     runs-on: ubuntu-latest
     steps:
-      # 1️⃣ Checkout PR branch safely (fork-safe)
+      # 1️⃣ Checkout PR branch
       - name: Checkout PR branch
         uses: actions/checkout@v4
         with:
@@ -17,40 +17,40 @@ jobs:
           ref: ${{ github.event.pull_request.head.ref }}
           repository: ${{ github.event.pull_request.head.repo.full_name }}
 
-      # 2️⃣ Fetch base branch for diff
+      # 2️⃣ Fetch base branch for diffs
       - name: Fetch base branch
         run: git fetch origin ${{ github.event.pull_request.base.ref }} --depth=1
 
-      # 3️⃣ Detect .md and .nav changes
-      - name: Identify changed files
+      # 3️⃣ Identify .md and .nav changes
+      - name: Identify .md and .nav changes
         run: |
           BASE=origin/${{ github.event.pull_request.base.ref }}
           HEAD=${{ github.event.pull_request.head.sha }}
 
           # Detect any relevant changes
-          CHANGED_MD=$(git diff --name-status $BASE $HEAD | grep -E '^([ADM]|R).*\.md$' || true)
-          CHANGED_NAV=$(git diff --name-status $BASE $HEAD | grep -E '^([ADM]|R).*\.nav\.ya?ml$' || true)
+          CHANGED_FILES=$(git diff --name-status $BASE $HEAD | grep -E '\.md$|\.nav\.ya?ml$' || true)
 
           # Exit early if no relevant files changed
-          if [ -z "$CHANGED_MD$CHANGED_NAV" ]; then
+          if [ -z "$CHANGED_FILES" ]; then
             echo "No .md or .nav.yml/.nav.yaml changes detected. Exiting."
             exit 0
           fi
 
-          # Prepare environment variables
-          DELETED_MD=$(echo "$CHANGED_MD" | grep '^D' | cut -f2- || true)
-          RENAMED_MD=$(echo "$CHANGED_MD" | grep '^R' | awk '{print $2 " -> " $3}' || true)
+          # Markdown changes
+          DELETED_MD=$(echo "$CHANGED_FILES" | grep '^D.*\.md$' | cut -f2- || true)
+          RENAMED_MD=$(echo "$CHANGED_FILES" | grep '^R.*\.md$' | awk '{print $2 " -> " $3}' || true)
 
-          DELETED_NAV=$(echo "$CHANGED_NAV" | grep '^D' | cut -f2- || true)
-          MODIFIED_NAV=$(echo "$CHANGED_NAV" | grep '^A\|^M' | cut -f2- || true)
-          RENAMED_NAV=$(echo "$CHANGED_NAV" | grep '^R' | awk '{print $2 " -> " $3}' || true)
+          # Nav changes
+          DELETED_NAV=$(echo "$CHANGED_FILES" | grep '^D.*\.nav\.ya?ml$' | cut -f2- || true)
+          MODIFIED_NAV=$(echo "$CHANGED_FILES" | grep '^A\|^M.*\.nav\.ya?ml$' | cut -f2- || true)
+          RENAMED_NAV=$(echo "$CHANGED_FILES" | grep '^R.*\.nav\.ya?ml$' | awk '{print $2 " -> " $3}' || true)
 
           NAV_CHANGES=""
-
           for f in $DELETED_NAV; do NAV_CHANGES+="$f: [DELETED]\n\n"; done
           for f in $MODIFIED_NAV; do DIFF=$(git diff $BASE $HEAD -- "$f" | grep -vE '^\+\+\+|^---'); NAV_CHANGES+="$f:\n$DIFF\n\n"; done
           for f in $RENAMED_NAV; do NAV_CHANGES+="$f [RENAMED]\n\n"; done
 
+          # Export env variables
           echo "DELETED_MD<<EOF" >> $GITHUB_ENV
           echo "$DELETED_MD" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
@@ -63,6 +63,7 @@ jobs:
           echo -e "$NAV_CHANGES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
+          # Set warning flag
           echo "warning=true" >> $GITHUB_ENV
 
       # 4️⃣ Post PR comment if relevant
@@ -76,15 +77,13 @@ jobs:
             const renamedMd = `${process.env.RENAMED_MD}`.trim();
             const navChanges = `${process.env.NAV_CHANGES}`.trim();
 
-            // ✅ Requested intro
-            let message = `🔍 **Documentation URL Checker**\n\nThis PR modifies documentation files in ways that could potentially create broken links.\n\n`;
+            let message = "🔍 **Documentation URL Checker**\n\nThis PR modifies documentation files in ways that could potentially create broken links.\n\n";
 
             if (deletedMd) message += `**Deleted Markdown files:**\n\`\`\`\n${deletedMd}\n\`\`\`\n\n`;
             if (renamedMd) message += `**Renamed Markdown files:**\n\`\`\`\n${renamedMd}\n\`\`\`\n\n`;
             if (navChanges) message += `**Navigation file changes:**\n\`\`\`\n${navChanges}\n\`\`\`\n\n`;
 
-            // ✅ Requested closing
-            message += `🚨 Please review these changes carefully 🚨\n\n If not handled properly, broken links (404 errors) could appear. To maintain a smooth user experience, consider:\n- Adding redirects in the \`mkdocs.yml\` file from the old URLs to the new ones\n- Updating internal references to these files`;
+            message += "🚨 Please review these changes carefully 🚨\n\n If not handled properly, broken links (404 errors) could appear. To maintain a smooth user experience, consider:\n- Adding redirects in the `mkdocs.yml` file from the old URLs to the new ones\n- Updating internal references to these files";
 
             github.rest.issues.createComment({
               owner: context.repo.owner,
