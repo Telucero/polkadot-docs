@@ -4,6 +4,9 @@ on:
   pull_request:
     branches:
       - url-test
+     paths:
+      - '**/*.md'
+      - '**/*.nav.yml'
 
 jobs:
   check-doc-nav-changes:
@@ -72,7 +75,7 @@ jobs:
             if (renamedMd) message += `**Renamed Markdown files:**\n\`\`\`\n${renamedMd}\n\`\`\`\n\n`;
             if (navChanges) message += `**Navigation file changes:**\n\`\`\`\n${navChanges}\n\`\`\`\n\n`;
 
-            message += "🚨 Please verify:\n- Links are correct\n- TOC matches expected structure\n- Deleted/renamed entries are handled. \n\n 🚨If not handled properly, broken links (404 errors) could appear. To maintain a smooth user experience, consider:\n- Adding redirects in the \`mkdocs.yml\` file from the old URLs to the new ones\n- Updating internal references to these files";
+            message += "🚨 Please verify:\n- Links are correct\n- TOC matches expected structure\n- Deleted/renamed entries are handled. \n\n 🚨 If not handled properly, broken links (404 errors) could appear. To maintain a smooth user experience, consider:\n- Adding redirects in the \`mkdocs.yml\` file from the old URLs to the new ones\n- Updating internal references to these files";
 
             github.rest.issues.createComment({
               owner: context.repo.owner,
