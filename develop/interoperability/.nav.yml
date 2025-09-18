@@ -5,7 +5,7 @@ nav:
   - 'Channels': xcm-channels.md
   - 'XCM Runtime Configuration': xcm-config.md
   - 'Send Messages': send-messages.md
-  - 'XCM Runtime APIs': xcm-runtime-apis.md
+  - 'XCM Runtime APIs': xcm-runtime-ap.md
   - 'Test and Debug': test-and-debug.md
   - xcm-guides
   - versions
