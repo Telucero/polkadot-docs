@@ -3,11 +3,11 @@ name: Check Documentation URL Changes
 on:
   pull_request_target:
     branches:
-      - url-test
+      - master       # target branch of PR
     paths:
       - '**/*.md'
       - '**/.nav.yml'
-\
+      - '**/.nav.yaml'
 
 jobs:
   check-url-changes:
@@ -34,7 +34,7 @@ jobs:
           echo "$RENAMED_FILES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
 
-          # Deleted nav files
+          # Deleted nav files (.nav.yml or .nav.yaml)
           DELETED_NAV_FILES=$(git diff --name-status origin/master ${{ github.event.pull_request.head.sha }} | grep '^D.*\.nav\.ya?ml$' | cut -f2- || true)
 
           # Modified nav files
@@ -63,12 +63,12 @@ jobs:
             echo "warning=false" >> $GITHUB_ENV
           fi
 
-          # Log changes
+          # Log for debugging
           echo "Deleted markdown files:"
           echo "$DELETED_FILES"
           echo -e "\nRenamed/Moved markdown files:"
           echo "$RENAMED_FILES"
-          echo -e "\nNav file changes:"
+          echo -e "\nNav file changes (deleted/modified):"
           echo -e "$NAV_CHANGES"
 
       - name: Post PR warning
@@ -94,7 +94,15 @@ jobs:
             }
 
             if (navChanges) {
-              message += `**Modified or deleted navigation files:**\n\`\`\`\n${navChanges}\n\`\`\`\n\n`;
+              // Highlight deleted nav files separately
+              const navLines = navChanges.split('\n').map(line => {
+                if (line.includes('[FILE DELETED]')) {
+                  return `❌ ${line.replace(':', '')}`; // mark deleted files with ❌
+                }
+                return line;
+              }).join('\n');
+
+              message += `**Modified or deleted navigation files:**\n\`\`\`\n${navLines}\n\`\`\`\n\n`;
             }
 
             message += `🚨 Please review these changes carefully 🚨\n\nIf not handled properly, broken links (404 errors) could appear. To maintain a smooth user experience, consider:\n- Adding redirects in the \`mkdocs.yml\` file from the old URLs to the new ones\n- Updating internal references to these files\n- Verifying that the navigation structure still matches the intended URLs.`;
